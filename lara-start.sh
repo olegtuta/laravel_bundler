@@ -30,7 +30,7 @@ do
 done
 
 # Create Laravel project with selected options
-composer create-project --prefer-dist laravel/laravel $project_name
+composer create-project laravel/laravel $project_name
 cd $project_name
 composer require laravel/ui
 php artisan ui vue $auth_option
@@ -44,14 +44,26 @@ composer require laravel/octane
 php artisan octane:install
 
 # Get up the docker
-sail up -d
-sail composer require laravel/octane spiral/roadrunner
-sail shell
+vendor/bin/sail up -d
+vendor/bin/sail composer require laravel/octane spiral/roadrunner
 
 # Publish won't help if it's down
-sail artisan sail:publish
-chmod +x ./rr
+vendor/bin/sail artisan sail:publish
+php artisan sail:publish
+
+# Change supervisord.conf for running roadrunner instead of artisan serve
+versions=("7.4" "8.0" "8.1" "8.2")
+for v in "${versions[@]}"
+do
+  config_file="docker/$v/supervisord.conf"
+  new_command="/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan octane:start --server=roadrunner --host=0.0.0.0 --rpc-port=6001 --port=80"
+  sed -i "s|^command=.*|command=$new_command|g" $config_file
+done
+
+# Rebuild image stopping and getting up then
+vendor/bin/sail down
+vendor/bin/sail build --no-cache
 
 # Get requires and run the watcher
 npm install
-npm run dev
+vendor/bin/sail up & chmod +x ./rr
